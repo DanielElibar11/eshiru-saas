@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Experiencia Eshiru</title>
+    <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+    
+    <script>
+      // ⬇️⬇️ PEGA AQUÍ LA MISMA CONFIG DE FIREBASE ⬇️⬇️
+      const firebaseConfig = {
+            apiKey: "AIzaSyDjjMQH62cIao0FyVpM0l2hAg-yQrsZItk",
+            authDomain: "eshiru-app.firebaseapp.com",
+            projectId: "eshiru-app",
+            storageBucket: "eshiru-app.firebasestorage.app",
+            messagingSenderId: "392199103888",
+            appId: "1:392199103888:web:ef45f6ea5f194ab81fff15"
+      };
+      // ⬆️⬆️ ---------------------------------- ⬆️⬆️
+
+      firebase.initializeApp(firebaseConfig);
+      const db = firebase.firestore();
+
+      document.addEventListener("DOMContentLoaded", async function() {
+        const params = new URLSearchParams(window.location.search);
+        const id = params.get('id');
+
+        if (!id) { alert("Escanea el QR de tu playera"); return; }
+
+        const doc = await db.collection("productos").doc(id).get();
+        if (!doc.exists) { alert("Producto no encontrado"); return; }
+        
+        const data = doc.data();
+        const scene = document.querySelector('a-scene');
+        const vid = document.querySelector('#vid');
+
+        // Seteamos los atributos AR
+        scene.setAttribute('mindar-image', `imageTargetSrc: ${data.target}; filterMinCF:0.001; filterBeta: 10;`);
+        vid.src = data.video;
+
+        // Lógica de play/pause
+        scene.addEventListener("targetFound", () => { vid.play(); vid.muted = false; });
+        scene.addEventListener("targetLost", () => { vid.pause(); });
+        document.body.addEventListener('click', () => { vid.play(); vid.muted = false; });
+      });
+    </script>
+  </head>
+  <body style="margin: 0; overflow: hidden;">
+    <a-scene mindar-image="" color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights, antialias: false, precision: high" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
+      <a-assets>
+        <video id="vid" loop="true" playsinline webkit-playsinline crossorigin="anonymous"></video>
+      </a-assets>
+      <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+      <a-entity mindar-image-target="targetIndex: 0">
+        <a-plane src="#vid" position="0 0 0" height="1.77" width="1" rotation="0 0 0" opacity="1"></a-plane>
+      </a-entity>
+    </a-scene>
+  </body>
+</html>
