@@ -6,147 +6,116 @@
     <link rel="icon" href="favicon.png" type="image/png">
 
     <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
     
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
     
     <style>
-      /* Estilo para la Pantalla de Inicio (Overlay) */
-      #overlay {
-        position: fixed;
-        top: 0; left: 0; width: 100%; height: 100%;
-        background: rgba(0, 0, 0, 0.85);
-        z-index: 9999;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
+      body { margin: 0; overflow: hidden; font-family: sans-serif; }
+      #loading-screen {
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: #000; z-index: 9999;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
         color: white;
-        font-family: sans-serif;
-        text-align: center;
-      }
-      #startBtn {
-        padding: 15px 30px;
-        font-size: 18px;
-        background: #ff4757;
-        border: none;
-        color: white;
-        border-radius: 50px;
-        cursor: pointer;
-        margin-top: 20px;
-        box-shadow: 0 4px 15px rgba(255, 71, 87, 0.4);
-        font-weight: bold;
       }
       .hidden { display: none !important; }
       
-      /* Ocultar botón VR */
-      .a-enter-vr-button { display: none; }
+      /* Botón de depuración por si falla */
+      #debug-link {
+        margin-top: 20px; color: #ff4757; font-size: 12px; text-decoration: underline; cursor: pointer;
+      }
     </style>
+  </head>
+  
+  <body>
+    <div id="loading-screen">
+        <h2 id="status">Buscando producto...</h2>
+        <div class="spinner-border text-light" role="status"></div>
+        <a id="debug-link" href="#" target="_blank" style="display:none">Descargar archivo .mind (Test)</a>
+    </div>
+
+    <div id="ar-container"></div>
 
     <script>
-      // ⬇️⬇️ PEGA AQUÍ TU CONFIG DE FIREBASE ⬇️⬇️
-      const firebaseConfig = {
-            apiKey: "AIzaSyDjjMQH62cIao0FyVpM0l2hAg-yQrsZItk",
-            authDomain: "eshiru-app.firebaseapp.com",
-            projectId: "eshiru-app",
-            storageBucket: "eshiru-app.firebasestorage.app",
-            messagingSenderId: "392199103888",
-            appId: "1:392199103888:web:ef45f6ea5f194ab81fff15"
-      };
-      // ⬆️⬆️ --------------------------------- ⬆️⬆️
+      // ⬇️ PEGA AQUÍ TU CONFIGURACIÓN DE FIREBASE ⬇️
+      cconst firebaseConfig = {
+        apiKey: "AIzaSyDjjMQH62cIao0FyVpM0l2hAg-yQrsZItk",
+        authDomain: "eshiru-app.firebaseapp.com",
+        projectId: "eshiru-app",
+        storageBucket: "eshiru-app.firebasestorage.app",
+        messagingSenderId: "392199103888",
+        appId: "1:392199103888:web:ef45f6ea5f194ab81fff15"
+        };
+      // ⬆️ ------------------------------------- ⬆️
 
-      firebase.initializeApp(firebaseConfig);
+      if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
       const db = firebase.firestore();
-
-      let videoElement = null;
 
       document.addEventListener("DOMContentLoaded", async function() {
         const params = new URLSearchParams(window.location.search);
         const id = params.get('id');
-        const startBtn = document.getElementById('startBtn');
-        const overlay = document.getElementById('overlay');
-        const statusText = document.getElementById('statusText');
+        const status = document.getElementById('status');
+        const debugLink = document.getElementById('debug-link');
 
-        if (!id) { statusText.innerText = "⚠️ Error: Falta ID del producto."; return; }
+        if (!id) { status.innerText = "⚠️ Error: Falta el ID en el enlace."; return; }
 
         try {
-            // 1. Descargar datos de Firebase
-            statusText.innerText = "Cargando magia...";
+            status.innerText = "Descargando datos...";
             const doc = await db.collection("productos").doc(id).get();
             
-            if (!doc.exists) { 
-                statusText.innerText = "❌ Producto no encontrado."; 
-                return; 
-            }
+            if (!doc.exists) { status.innerText = "❌ Producto no encontrado."; return; }
             
             const data = doc.data();
-            const scene = document.querySelector('a-scene');
-            videoElement = document.querySelector('#vid');
-
-            // 2. Configurar AR
-            scene.setAttribute('mindar-image', `imageTargetSrc: ${data.target}; filterMinCF:0.001; filterBeta: 10; uiLoading:no; uiScanning:yes;`);
             
-            // 3. Asignar video pero NO reproducir todavía
-            videoElement.src = data.video;
-            
-            // Esperamos a que el video cargue sus metadatos
-            videoElement.addEventListener('loadeddata', () => {
-                 statusText.innerText = "¡Listo!";
-                 startBtn.classList.remove('hidden'); // Mostrar botón solo cuando el video esté listo
-            });
+            // Debug: Ponemos el link visible por si quieres probar que el archivo existe
+            debugLink.href = data.target;
+            debugLink.style.display = 'block';
 
-            // 4. Lógica del Botón "COMENZAR" (Crucial para iOS/Android)
-            startBtn.addEventListener('click', () => {
-                overlay.classList.add('hidden'); // Quitar pantalla negra
+            console.log("Iniciando AR con:", data.target);
+            status.innerText = "Iniciando cámara...";
+
+            // ⚠️ AQUÍ ESTÁ EL TRUCO: Creamos el HTML dinámicamente
+            // Así garantizamos que A-Frame nazca CON la URL ya puesta.
+            const sceneHTML = `
+            <a-scene mindar-image="imageTargetSrc: ${data.target}; filterMinCF:0.001; filterBeta: 10; uiLoading:no; uiScanning:yes;" 
+                     color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights" 
+                     vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
                 
-                // Truco: Play y Pause rápido para desbloquear el audio/video en el navegador
-                videoElement.play().then(() => {
-                    videoElement.pause();
-                }).catch(e => console.log("Error inicializando video:", e));
-            });
+                <a-assets>
+                    <video id="vid" src="${data.targetVideo || data.video}" loop="true" playsinline webkit-playsinline crossorigin="anonymous"></video>
+                </a-assets>
 
-            // 5. Eventos AR
-            scene.addEventListener("targetFound", () => {
-                if(videoElement) {
-                    videoElement.muted = false; // Asegurar sonido
-                    videoElement.play();
-                }
-            });
-            scene.addEventListener("targetLost", () => {
-                if(videoElement) {
-                    videoElement.pause();
-                    videoElement.currentTime = 0; // Opcional: reiniciar video al perderlo
-                }
-            });
+                <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+
+                <a-entity mindar-image-target="targetIndex: 0">
+                    <a-plane src="#vid" position="0 0 0" height="1.77" width="1" rotation="0 0 0" opacity="1"></a-plane>
+                </a-entity>
+            </a-scene>
+            `;
+
+            // Inyectamos la escena en el cuerpo
+            document.getElementById('ar-container').innerHTML = sceneHTML;
+            
+            // Ocultamos el cargador después de unos segundos
+            setTimeout(() => {
+                document.getElementById('loading-screen').classList.add('hidden');
+                
+                // Lógica de play/pause
+                const vid = document.querySelector('#vid');
+                const scene = document.querySelector('a-scene');
+                
+                scene.addEventListener("targetFound", () => { vid.play(); vid.muted = false; });
+                scene.addEventListener("targetLost", () => { vid.pause(); });
+                document.body.addEventListener('click', () => { vid.play(); vid.muted = false; });
+                
+            }, 3000); // Damos 3 segundos al motor para respirar
 
         } catch (error) {
             console.error(error);
-            statusText.innerText = "Error de conexión.";
+            status.innerText = "Error: " + error.message;
         }
       });
     </script>
-  </head>
-  
-  <body style="margin: 0; overflow: hidden;">
-    
-    <div id="overlay">
-        <h2 id="statusText">Cargando...</h2>
-        <button id="startBtn" class="hidden">✨ COMENZAR EXPERIENCIA ✨</button>
-        <p style="font-size: 12px; margin-top: 20px; opacity: 0.7;">Apunta a tu playera Eshiru</p>
-    </div>
-
-    <a-scene mindar-image="" color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
-      <a-assets>
-        <video id="vid" loop="true" playsinline webkit-playsinline crossorigin="anonymous"></video>
-      </a-assets>
-
-      <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
-
-      <a-entity mindar-image-target="targetIndex: 0">
-        <a-plane material="shader: flat; src: #vid" position="0 0 0" height="1.77" width="1" rotation="0 0 0" opacity="1"></a-plane>
-      </a-entity>
-    </a-scene>
   </body>
 </html>
-
