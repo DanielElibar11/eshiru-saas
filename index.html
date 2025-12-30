@@ -20,8 +20,6 @@
         color: white;
       }
       .hidden { display: none !important; }
-      
-      /* Botón de depuración por si falla */
       #debug-link {
         margin-top: 20px; color: #ff4757; font-size: 12px; text-decoration: underline; cursor: pointer;
       }
@@ -38,7 +36,7 @@
     <div id="ar-container"></div>
 
     <script>
-      // ⬇️ PEGA AQUÍ TU CONFIGURACIÓN DE FIREBASE ⬇️
+      // ⬇️ TU CONFIGURACIÓN DE FIREBASE (Ya corregida) ⬇️
       const firebaseConfig = {
       apiKey: "AIzaSyDjjMQH62cIao0FyVpM0l2hAg-yQrsZItk",
       authDomain: "eshiru-app.firebaseapp.com",
@@ -68,48 +66,54 @@
             
             const data = doc.data();
             
-            // Debug: Ponemos el link visible por si quieres probar que el archivo existe
             debugLink.href = data.target;
             debugLink.style.display = 'block';
 
             console.log("Iniciando AR con:", data.target);
             status.innerText = "Iniciando cámara...";
 
-            // ⚠️ AQUÍ ESTÁ EL TRUCO: Creamos el HTML dinámicamente
-            // Así garantizamos que A-Frame nazca CON la URL ya puesta.
+            // ⚠️ CÓDIGO ACTUALIZADO AQUÍ ⚠️
             const sceneHTML = `
             <a-scene mindar-image="imageTargetSrc: ${data.target}; filterMinCF:0.001; filterBeta: 10; uiLoading:no; uiScanning:yes;" 
                      color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights" 
                      vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
                 
                 <a-assets>
-                    <video id="vid" src="${data.targetVideo || data.video}" loop="true" playsinline webkit-playsinline crossorigin="anonymous"></video>
+                    <video id="vid" src="${data.targetVideo || data.video}" loop="true" playsinline webkit-playsinline crossorigin="anonymous" autoplay muted></video>
                 </a-assets>
 
                 <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
                 <a-entity mindar-image-target="targetIndex: 0">
-                    <a-plane material="shader: flat; src: #vid" position="0 0 0" height="1.77" width="1" rotation="0 0 0"></a-plane>
+                    <a-plane src="#vid" position="0 0 0" height="1.77" width="1" rotation="0 0 0" material="shader: flat"></a-plane>
                 </a-entity>
             </a-scene>
             `;
 
-            // Inyectamos la escena en el cuerpo
             document.getElementById('ar-container').innerHTML = sceneHTML;
             
-            // Ocultamos el cargador después de unos segundos
             setTimeout(() => {
                 document.getElementById('loading-screen').classList.add('hidden');
                 
-                // Lógica de play/pause
                 const vid = document.querySelector('#vid');
                 const scene = document.querySelector('a-scene');
                 
-                scene.addEventListener("targetFound", () => { vid.play(); vid.muted = false; });
-                scene.addEventListener("targetLost", () => { vid.pause(); });
-                document.body.addEventListener('click', () => { vid.play(); vid.muted = false; });
+                // Lógica de reproducción
+                scene.addEventListener("targetFound", () => { 
+                    vid.muted = false; // 🔊 Activamos sonido al encontrar
+                    vid.play(); 
+                });
                 
-            }, 3000); // Damos 3 segundos al motor para respirar
+                scene.addEventListener("targetLost", () => { 
+                    vid.pause(); 
+                });
+                
+                document.body.addEventListener('click', () => { 
+                    vid.play(); 
+                    vid.muted = false; 
+                });
+                
+            }, 3000);
 
         } catch (error) {
             console.error(error);
@@ -119,5 +123,3 @@
     </script>
   </body>
 </html>
-
-
