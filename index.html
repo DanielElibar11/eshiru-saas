@@ -96,9 +96,8 @@
                      vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
                 
                 <a-assets>
-                    <video id="vid" src="https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.2.0/examples/assets/card-example/portfolio/portfolio.mp4" 
-                   preload="auto" loop="true" playsinline webkit-playsinline crossorigin="anonymous" 
-                   autoplay muted></video>
+                    <video id="vid" src="${data.targetVideo || data.video}" 
+                           preload="auto" loop="true" playsinline webkit-playsinline crossorigin="anonymous"></video>
                 </a-assets>
 
                 <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
@@ -139,4 +138,3 @@
     </script>
   </body>
 </html>
-
