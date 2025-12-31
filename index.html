@@ -12,25 +12,31 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
     
     <style>
-      body { margin: 0; overflow: hidden; font-family: sans-serif; background-color: black; }
-      #loading-screen {
+      body { margin: 0; overflow: hidden; font-family: sans-serif; background: black; }
+      
+      /* Pantalla de Inicio (Overlay) */
+      #start-screen {
         position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-        background: #000; z-index: 9999;
+        background: rgba(0,0,0,0.9); z-index: 9999;
         display: flex; flex-direction: column; align-items: center; justify-content: center;
-        color: white;
+        color: white; transition: opacity 0.5s;
       }
-      .hidden { display: none !important; }
-      #debug-link {
-        margin-top: 20px; color: #ff4757; font-size: 12px; text-decoration: underline; cursor: pointer;
+      
+      #start-btn {
+        padding: 15px 40px; font-size: 20px; background: #ff4757; color: white;
+        border: none; border-radius: 50px; font-weight: bold; cursor: pointer;
+        margin-top: 20px; box-shadow: 0 0 20px rgba(255, 71, 87, 0.5);
       }
+      
+      .hidden { opacity: 0; pointer-events: none; }
     </style>
   </head>
   
   <body>
-    <div id="loading-screen">
-        <h2 id="status">Buscando producto...</h2>
-        <div class="spinner-border text-light" role="status"></div>
-        <a id="debug-link" href="#" target="_blank" style="display:none">Ver archivo (Debug)</a>
+    <div id="start-screen">
+        <h2 id="status">Cargando datos...</h2>
+        <div id="loader" class="spinner-border text-light" role="status">...</div>
+        <button id="start-btn" style="display:none">🔥 COMENZAR 🔥</button>
     </div>
 
     <div id="ar-container"></div>
@@ -54,80 +60,81 @@
         const params = new URLSearchParams(window.location.search);
         const id = params.get('id');
         const status = document.getElementById('status');
-        const debugLink = document.getElementById('debug-link');
+        const startBtn = document.getElementById('start-btn');
+        const loader = document.getElementById('loader');
+        const startScreen = document.getElementById('start-screen');
 
         if (!id) { status.innerText = "⚠️ Error: Falta ID."; return; }
 
         try {
-            status.innerText = "Cargando...";
+            // 1. Descarga de datos
             const doc = await db.collection("productos").doc(id).get();
-            
             if (!doc.exists) { status.innerText = "❌ No encontrado."; return; }
-            
             const data = doc.data();
-            
-            debugLink.href = data.target;
-            debugLink.style.display = 'block';
 
-            console.log("Video URL:", data.targetVideo || data.video);
-            status.innerText = "Iniciando cámara...";
+            status.innerText = "¡Listo!";
+            loader.style.display = 'none';
+            startBtn.style.display = 'block';
 
-            // ⚠️ AQUÍ ESTÁ LA SOLUCIÓN DEL VIDEO INVISIBLE ⚠️
-            // 1. Usamos <a-video> en lugar de <a-plane>
-            // 2. Quitamos la opacidad y forzamos el shader flat
-            const sceneHTML = `
-            <a-scene mindar-image="imageTargetSrc: ${data.target}; filterMinCF:0.001; filterBeta: 10; uiLoading:no; uiScanning:yes;" 
-                     color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights" 
-                     vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
-                
-                <a-assets>
-                    <video id="vid" src="${data.targetVideo || data.video}" 
-                           preload="auto" loop="true" playsinline webkit-playsinline crossorigin="anonymous" 
-                           autoplay muted></video>
-                </a-assets>
-
-                <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
-
-                <a-entity mindar-image-target="targetIndex: 0">
-                    <a-video src="#vid" position="0 0 0" height="1.77" width="1" rotation="0 0 0"></a-video>
-                </a-entity>
-            </a-scene>
-            `;
-
-            document.getElementById('ar-container').innerHTML = sceneHTML;
-            
-            setTimeout(() => {
-                document.getElementById('loading-screen').classList.add('hidden');
-                
-                const vid = document.querySelector('#vid');
-                const scene = document.querySelector('a-scene');
-                
-                // Forzar reproducción al detectar
-                scene.addEventListener("targetFound", () => { 
-                    console.log("Target Found! Playing video...");
-                    vid.muted = false; 
-                    // Truco sucio: Pausar y Play rápido para forzar repintado
-                    vid.pause();
-                    setTimeout(() => vid.play(), 50);
-                });
-                
-                scene.addEventListener("targetLost", () => { 
-                    vid.pause(); 
-                });
-                
-                // Click de respaldo
-                document.body.addEventListener('click', () => { 
-                    vid.play(); 
-                    vid.muted = false; 
-                });
-                
-            }, 2500);
+            // 2. Esperamos el clic del usuario (VITAL PARA EL VIDEO)
+            startBtn.addEventListener('click', () => {
+                startScreen.classList.add('hidden');
+                iniciarAR(data);
+            });
 
         } catch (error) {
             console.error(error);
             status.innerText = "Error: " + error.message;
         }
       });
+
+      function iniciarAR(data) {
+          // Construimos la escena
+          const sceneHTML = `
+            <a-scene mindar-image="imageTargetSrc: ${data.target}; filterMinCF:0.001; filterBeta: 10; uiLoading:no; uiScanning:yes;" 
+                     color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights" 
+                     vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
+                
+                <a-assets>
+                    <video id="vid" src="${data.targetVideo || data.video}" 
+                           preload="auto" loop="true" playsinline webkit-playsinline crossorigin="anonymous"></video>
+                </a-assets>
+
+                <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+
+                <a-entity mindar-image-target="targetIndex: 0">
+                    <a-plane src="#vid" position="0 0 0" height="1.77" width="1" rotation="0 0 0" 
+                             material="shader: flat; opacity: 1; transparent: false"></a-plane>
+                </a-entity>
+            </a-scene>
+          `;
+
+          document.getElementById('ar-container').innerHTML = sceneHTML;
+
+          // Damos un momento para que A-Frame se inicie
+          setTimeout(() => {
+              const vid = document.querySelector('#vid');
+              const scene = document.querySelector('a-scene');
+
+              // Reproducir al encontrar
+              scene.addEventListener("targetFound", () => { 
+                  console.log("Found! Playing...");
+                  vid.play();
+                  vid.muted = false;
+              });
+
+              scene.addEventListener("targetLost", () => { 
+                  vid.pause(); 
+              });
+
+              // Click de emergencia: Si tocas la pantalla, el video intenta arrancar
+              document.body.addEventListener('click', () => {
+                  vid.play();
+                  vid.muted = false;
+              });
+              
+          }, 2000);
+      }
     </script>
   </body>
 </html>
