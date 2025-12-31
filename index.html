@@ -2,47 +2,36 @@
 <html>
   <head>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Eshiru Experience</title>
-    <link rel="icon" href="favicon.png" type="image/png">
+    <title>Debug Laptop</title>
+    <link rel="icon" href="data:;base64,iVBORw0KGgo=">
 
     <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
-    
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
     
     <style>
-      body { margin: 0; overflow: hidden; font-family: sans-serif; background: black; }
-      
-      /* Pantalla de Carga */
-      #start-screen {
-        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-        background: #000; z-index: 9999;
-        display: flex; flex-direction: column; align-items: center; justify-content: center;
-        color: white; transition: opacity 0.5s;
+      body { margin: 0; overflow: hidden; background: black; color: white; font-family: monospace; }
+      #debug-console {
+        position: fixed; top: 0; left: 0; width: 100%; padding: 10px;
+        background: rgba(0,0,0,0.8); z-index: 9999; pointer-events: none;
+        white-space: pre-wrap; font-size: 12px;
       }
-      
       #start-btn {
-        padding: 15px 40px; font-size: 18px; background: #e84118; color: white;
-        border: none; border-radius: 50px; font-weight: bold; cursor: pointer;
-        margin-top: 20px; box-shadow: 0 0 15px rgba(232, 65, 24, 0.5);
+        position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+        padding: 15px 30px; background: red; color: white; border: none; z-index: 10000;
+        font-size: 16px; cursor: pointer; display: none;
       }
-      
-      .hidden { opacity: 0; pointer-events: none; }
     </style>
   </head>
   
   <body>
-    <div id="start-screen">
-        <h2 id="status">Cargando...</h2>
-        <div id="loader" class="spinner-border text-light" role="status">...</div>
-        <button id="start-btn" style="display:none">⚡ VER EXPERIENCIA ⚡</button>
-    </div>
-
+    <div id="debug-console">Iniciando sistema...</div>
+    <button id="start-btn">▶️ ACTIVAR CAMARA</button>
     <div id="ar-container"></div>
 
     <script>
-      // ⬇️ TU CONFIGURACIÓN DE FIREBASE ⬇️
+      // ⬇️ TU CONFIG ⬇️
       const firebaseConfig = {
       apiKey: "AIzaSyDjjMQH62cIao0FyVpM0l2hAg-yQrsZItk",
       authDomain: "eshiru-app.firebaseapp.com",
@@ -51,7 +40,12 @@
       messagingSenderId: "392199103888",
       appId: "1:392199103888:web:ef45f6ea5f194ab81fff15"
       };
-      // ⬆️ ------------------------------------- ⬆️
+      // ⬆️ --------- ⬆️
+
+      function log(msg) {
+          console.log(msg);
+          document.getElementById('debug-console').innerText += "\n" + msg;
+      }
 
       if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
       const db = firebase.firestore();
@@ -59,46 +53,52 @@
       document.addEventListener("DOMContentLoaded", async function() {
         const params = new URLSearchParams(window.location.search);
         const id = params.get('id');
-        const status = document.getElementById('status');
-        const startBtn = document.getElementById('start-btn');
-        const loader = document.getElementById('loader');
-        const startScreen = document.getElementById('start-screen');
 
-        if (!id) { status.innerText = "⚠️ Error: Falta ID."; return; }
+        if (!id) return log("❌ Error: Falta ID en la URL");
 
         try {
-            // 1. Descargar datos
+            log("1. Buscando en Firebase...");
             const doc = await db.collection("productos").doc(id).get();
-            if (!doc.exists) { status.innerText = "❌ No encontrado."; return; }
+            if (!doc.exists) return log("❌ ID no existe en Base de Datos");
+            
             const data = doc.data();
+            const videoUrl = data.targetVideo || data.video;
+            log("✅ Datos encontrados.");
+            log("2. URL Video: " + videoUrl.substring(0, 30) + "...");
 
-            status.innerText = "¡Listo!";
-            loader.style.display = 'none';
-            startBtn.style.display = 'block';
+            // INTENTO DE DESCARGA DIRECTA (Bypass CORS)
+            log("3. Descargando archivo de video...");
+            
+            const response = await fetch(videoUrl, { mode: 'cors' });
+            if (!response.ok) throw new Error("Error red: " + response.status);
+            
+            const blob = await response.blob();
+            const localUrl = URL.createObjectURL(blob);
+            log("✅ Video descargado en RAM: " + localUrl);
 
-            // 2. Al dar clic, inyectamos la escena
-            startBtn.addEventListener('click', () => {
-                startScreen.classList.add('hidden');
-                iniciarAR(data);
+            // Mostrar botón
+            const btn = document.getElementById('start-btn');
+            btn.style.display = 'block';
+            
+            btn.addEventListener('click', () => {
+                btn.style.display = 'none';
+                log("4. Iniciando AR...");
+                iniciarAR(data.target, localUrl);
             });
 
-        } catch (error) {
-            console.error(error);
-            status.innerText = "Error: " + error.message;
+        } catch (e) {
+            log("❌ ERROR CRÍTICO: " + e.message);
         }
       });
 
-      function iniciarAR(data) {
-          // Construimos la escena con A-FRAME 1.3.0
-          // Nota: renderer="colorManagement: true" se comporta diferente aquí, es más seguro.
+      function iniciarAR(targetUrl, videoUrl) {
           const sceneHTML = `
-            <a-scene mindar-image="imageTargetSrc: ${data.target}; filterMinCF:0.001; filterBeta: 10; uiLoading:no; uiScanning:yes;" 
+            <a-scene mindar-image="imageTargetSrc: ${targetUrl}; filterMinCF:0.001; filterBeta: 10;" 
                      color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights" 
                      vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
                 
                 <a-assets>
-                    <video id="vid" src="${data.targetVideo || data.video}" 
-                           preload="auto" loop="true" playsinline webkit-playsinline crossorigin="anonymous"></video>
+                    <video id="vid" src="${videoUrl}" loop="true" playsinline webkit-playsinline crossorigin="anonymous"></video>
                 </a-assets>
 
                 <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
@@ -109,34 +109,25 @@
                 </a-entity>
             </a-scene>
           `;
-
           document.getElementById('ar-container').innerHTML = sceneHTML;
-
+          
           setTimeout(() => {
               const vid = document.querySelector('#vid');
               const scene = document.querySelector('a-scene');
 
-              // "Calentar" el video
-              vid.play().then(() => vid.pause()).catch(e => {});
+              // Forzar carga de textura
+              vid.play().then(() => vid.pause());
 
               scene.addEventListener("targetFound", () => { 
-                  console.log("¡Detectado!");
+                  log("🎯 IMAGEN ENCONTRADA");
                   vid.muted = false; 
                   vid.play();
               });
-
               scene.addEventListener("targetLost", () => { 
-                  console.log("Perdido...");
+                  log("💨 Perdido");
                   vid.pause(); 
               });
-              
-              // Click de emergencia
-              document.body.addEventListener('click', () => {
-                  vid.play();
-                  vid.muted = false;
-              });
-              
-          }, 1500);
+          }, 1000);
       }
     </script>
   </body>
