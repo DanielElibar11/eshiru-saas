@@ -5,7 +5,7 @@
     <title>Eshiru Experience</title>
     <link rel="icon" href="favicon.png" type="image/png">
 
-    <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+    <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
     
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
@@ -14,18 +14,18 @@
     <style>
       body { margin: 0; overflow: hidden; font-family: sans-serif; background: black; }
       
-      /* Pantalla de Inicio (Overlay) */
+      /* Pantalla de Carga */
       #start-screen {
         position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-        background: rgba(0,0,0,0.9); z-index: 9999;
+        background: #000; z-index: 9999;
         display: flex; flex-direction: column; align-items: center; justify-content: center;
         color: white; transition: opacity 0.5s;
       }
       
       #start-btn {
-        padding: 15px 40px; font-size: 20px; background: #ff4757; color: white;
+        padding: 15px 40px; font-size: 18px; background: #e84118; color: white;
         border: none; border-radius: 50px; font-weight: bold; cursor: pointer;
-        margin-top: 20px; box-shadow: 0 0 20px rgba(255, 71, 87, 0.5);
+        margin-top: 20px; box-shadow: 0 0 15px rgba(232, 65, 24, 0.5);
       }
       
       .hidden { opacity: 0; pointer-events: none; }
@@ -36,7 +36,7 @@
     <div id="start-screen">
         <h2 id="status">Cargando...</h2>
         <div id="loader" class="spinner-border text-light" role="status">...</div>
-        <button id="start-btn" style="display:none">🔥 VER EXPERIENCIA 🔥</button>
+        <button id="start-btn" style="display:none">⚡ VER EXPERIENCIA ⚡</button>
     </div>
 
     <div id="ar-container"></div>
@@ -67,7 +67,7 @@
         if (!id) { status.innerText = "⚠️ Error: Falta ID."; return; }
 
         try {
-            // 1. Descarga de datos
+            // 1. Descargar datos
             const doc = await db.collection("productos").doc(id).get();
             if (!doc.exists) { status.innerText = "❌ No encontrado."; return; }
             const data = doc.data();
@@ -76,7 +76,7 @@
             loader.style.display = 'none';
             startBtn.style.display = 'block';
 
-            // 2. Al dar clic, desbloqueamos audio pero NO reproducimos aún
+            // 2. Al dar clic, inyectamos la escena
             startBtn.addEventListener('click', () => {
                 startScreen.classList.add('hidden');
                 iniciarAR(data);
@@ -89,15 +89,16 @@
       });
 
       function iniciarAR(data) {
-          // Construimos la escena
+          // Construimos la escena con A-FRAME 1.3.0
+          // Nota: renderer="colorManagement: true" se comporta diferente aquí, es más seguro.
           const sceneHTML = `
             <a-scene mindar-image="imageTargetSrc: ${data.target}; filterMinCF:0.001; filterBeta: 10; uiLoading:no; uiScanning:yes;" 
                      color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights" 
                      vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
                 
                 <a-assets>
-                    <video id="vid" src="https://cdn.aframe.io/videos/bunny.mp4" 
-                     preload="auto" loop="true" playsinline webkit-playsinline crossorigin="anonymous"></video>
+                    <video id="vid" src="${data.targetVideo || data.video}" 
+                           preload="auto" loop="true" playsinline webkit-playsinline crossorigin="anonymous"></video>
                 </a-assets>
 
                 <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
@@ -115,28 +116,28 @@
               const vid = document.querySelector('#vid');
               const scene = document.querySelector('a-scene');
 
-              // Truco para 'calentar' el video (Play 1ms y Pause)
-              vid.play().then(() => {
-                  vid.pause();
-                  vid.currentTime = 0;
-              }).catch(e => console.log("Esperando interacción..."));
+              // "Calentar" el video
+              vid.play().then(() => vid.pause()).catch(e => {});
 
-              // 🔊 REGLA DE ORO: Solo suena si ve la imagen
               scene.addEventListener("targetFound", () => { 
-                  console.log("¡Goku encontrado!");
-                  vid.muted = false; // Activar sonido
-                  vid.play();        // Arrancar video
+                  console.log("¡Detectado!");
+                  vid.muted = false; 
+                  vid.play();
               });
 
               scene.addEventListener("targetLost", () => { 
-                  console.log("Goku perdido...");
-                  vid.pause();       // Pausar video
-                  // vid.currentTime = 0; // Opcional: Reiniciar al perder
+                  console.log("Perdido...");
+                  vid.pause(); 
               });
               
-          }, 1000);
+              // Click de emergencia
+              document.body.addEventListener('click', () => {
+                  vid.play();
+                  vid.muted = false;
+              });
+              
+          }, 1500);
       }
     </script>
   </body>
 </html>
-
