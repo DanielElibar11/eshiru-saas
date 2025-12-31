@@ -34,9 +34,9 @@
   
   <body>
     <div id="start-screen">
-        <h2 id="status">Cargando datos...</h2>
+        <h2 id="status">Cargando...</h2>
         <div id="loader" class="spinner-border text-light" role="status">...</div>
-        <button id="start-btn" style="display:none">🔥 COMENZAR 🔥</button>
+        <button id="start-btn" style="display:none">🔥 VER EXPERIENCIA 🔥</button>
     </div>
 
     <div id="ar-container"></div>
@@ -76,7 +76,7 @@
             loader.style.display = 'none';
             startBtn.style.display = 'block';
 
-            // 2. Esperamos el clic del usuario (VITAL PARA EL VIDEO)
+            // 2. Al dar clic, desbloqueamos audio pero NO reproducimos aún
             startBtn.addEventListener('click', () => {
                 startScreen.classList.add('hidden');
                 iniciarAR(data);
@@ -104,36 +104,37 @@
 
                 <a-entity mindar-image-target="targetIndex: 0">
                     <a-plane src="#vid" position="0 0 0" height="1.77" width="1" rotation="0 0 0" 
-                             material="shader: flat; opacity: 1; transparent: false"></a-plane>
+                             material="shader: flat; opacity: 1"></a-plane>
                 </a-entity>
             </a-scene>
           `;
 
           document.getElementById('ar-container').innerHTML = sceneHTML;
 
-          // Damos un momento para que A-Frame se inicie
           setTimeout(() => {
               const vid = document.querySelector('#vid');
               const scene = document.querySelector('a-scene');
 
-              // Reproducir al encontrar
+              // Truco para 'calentar' el video (Play 1ms y Pause)
+              vid.play().then(() => {
+                  vid.pause();
+                  vid.currentTime = 0;
+              }).catch(e => console.log("Esperando interacción..."));
+
+              // 🔊 REGLA DE ORO: Solo suena si ve la imagen
               scene.addEventListener("targetFound", () => { 
-                  console.log("Found! Playing...");
-                  vid.play();
-                  vid.muted = false;
+                  console.log("¡Goku encontrado!");
+                  vid.muted = false; // Activar sonido
+                  vid.play();        // Arrancar video
               });
 
               scene.addEventListener("targetLost", () => { 
-                  vid.pause(); 
-              });
-
-              // Click de emergencia: Si tocas la pantalla, el video intenta arrancar
-              document.body.addEventListener('click', () => {
-                  vid.play();
-                  vid.muted = false;
+                  console.log("Goku perdido...");
+                  vid.pause();       // Pausar video
+                  // vid.currentTime = 0; // Opcional: Reiniciar al perder
               });
               
-          }, 2000);
+          }, 1000);
       }
     </script>
   </body>
