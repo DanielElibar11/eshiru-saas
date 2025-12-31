@@ -12,7 +12,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
     
     <style>
-      body { margin: 0; overflow: hidden; font-family: sans-serif; }
+      body { margin: 0; overflow: hidden; font-family: sans-serif; background-color: black; }
       #loading-screen {
         position: fixed; top: 0; left: 0; width: 100%; height: 100%;
         background: #000; z-index: 9999;
@@ -30,13 +30,13 @@
     <div id="loading-screen">
         <h2 id="status">Buscando producto...</h2>
         <div class="spinner-border text-light" role="status"></div>
-        <a id="debug-link" href="#" target="_blank" style="display:none">Descargar archivo .mind (Test)</a>
+        <a id="debug-link" href="#" target="_blank" style="display:none">Ver archivo (Debug)</a>
     </div>
 
     <div id="ar-container"></div>
 
     <script>
-      // ⬇️ TU CONFIGURACIÓN DE FIREBASE (Ya corregida) ⬇️
+      // ⬇️ TU CONFIGURACIÓN DE FIREBASE ⬇️
       const firebaseConfig = {
       apiKey: "AIzaSyDjjMQH62cIao0FyVpM0l2hAg-yQrsZItk",
       authDomain: "eshiru-app.firebaseapp.com",
@@ -56,36 +56,40 @@
         const status = document.getElementById('status');
         const debugLink = document.getElementById('debug-link');
 
-        if (!id) { status.innerText = "⚠️ Error: Falta el ID en el enlace."; return; }
+        if (!id) { status.innerText = "⚠️ Error: Falta ID."; return; }
 
         try {
-            status.innerText = "Descargando datos...";
+            status.innerText = "Cargando...";
             const doc = await db.collection("productos").doc(id).get();
             
-            if (!doc.exists) { status.innerText = "❌ Producto no encontrado."; return; }
+            if (!doc.exists) { status.innerText = "❌ No encontrado."; return; }
             
             const data = doc.data();
             
             debugLink.href = data.target;
             debugLink.style.display = 'block';
 
-            console.log("Iniciando AR con:", data.target);
+            console.log("Video URL:", data.targetVideo || data.video);
             status.innerText = "Iniciando cámara...";
 
-            // ⚠️ CÓDIGO ACTUALIZADO AQUÍ ⚠️
+            // ⚠️ AQUÍ ESTÁ LA SOLUCIÓN DEL VIDEO INVISIBLE ⚠️
+            // 1. Usamos <a-video> en lugar de <a-plane>
+            // 2. Quitamos la opacidad y forzamos el shader flat
             const sceneHTML = `
             <a-scene mindar-image="imageTargetSrc: ${data.target}; filterMinCF:0.001; filterBeta: 10; uiLoading:no; uiScanning:yes;" 
                      color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights" 
                      vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
                 
                 <a-assets>
-                    <video id="vid" src="${data.targetVideo || data.video}" loop="true" playsinline webkit-playsinline crossorigin="anonymous" autoplay muted></video>
+                    <video id="vid" src="${data.targetVideo || data.video}" 
+                           preload="auto" loop="true" playsinline webkit-playsinline crossorigin="anonymous" 
+                           autoplay muted></video>
                 </a-assets>
 
                 <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
                 <a-entity mindar-image-target="targetIndex: 0">
-                    <a-plane src="#vid" position="0 0 0" height="1.77" width="1" rotation="0 0 0" material="shader: flat"></a-plane>
+                    <a-video src="#vid" position="0 0 0" height="1.77" width="1" rotation="0 0 0"></a-video>
                 </a-entity>
             </a-scene>
             `;
@@ -98,22 +102,26 @@
                 const vid = document.querySelector('#vid');
                 const scene = document.querySelector('a-scene');
                 
-                // Lógica de reproducción
+                // Forzar reproducción al detectar
                 scene.addEventListener("targetFound", () => { 
-                    vid.muted = false; // 🔊 Activamos sonido al encontrar
-                    vid.play(); 
+                    console.log("Target Found! Playing video...");
+                    vid.muted = false; 
+                    // Truco sucio: Pausar y Play rápido para forzar repintado
+                    vid.pause();
+                    setTimeout(() => vid.play(), 50);
                 });
                 
                 scene.addEventListener("targetLost", () => { 
                     vid.pause(); 
                 });
                 
+                // Click de respaldo
                 document.body.addEventListener('click', () => { 
                     vid.play(); 
                     vid.muted = false; 
                 });
                 
-            }, 3000);
+            }, 2500);
 
         } catch (error) {
             console.error(error);
